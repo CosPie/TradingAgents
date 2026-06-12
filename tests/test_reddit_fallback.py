@@ -88,6 +88,13 @@ class TestJsonFallsBackToRss:
 
 @pytest.mark.unit
 class TestFormatterHandlesRssPosts:
+    def test_non_equity_alias_skips_network_fetch(self):
+        with patch.object(reddit, "_fetch_subreddit") as fetch:
+            out = reddit.fetch_reddit_posts("XAU", subreddits=("stocks",), inter_request_delay=0)
+        fetch.assert_not_called()
+        assert "reddit skipped for XAU" in out
+        assert "GC=F" in out
+
     def test_rss_posts_omit_fake_counts_and_note_source(self):
         rss_posts = [{
             "title": "NVDA pops", "score": None, "num_comments": None,

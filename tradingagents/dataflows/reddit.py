@@ -29,6 +29,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from .symbol_utils import normalize_symbol
+
 logger = logging.getLogger(__name__)
 
 _API = "https://www.reddit.com/r/{sub}/search.json?{qs}"
@@ -44,6 +46,18 @@ _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 # discussion. wallstreetbets has the most volume but most noise; stocks /
 # investing trend more measured. Caller can override.
 DEFAULT_SUBREDDITS = ("wallstreetbets", "stocks", "investing")
+
+
+def _reddit_skip_reason(ticker: str) -> str | None:
+    raw = str(ticker or "").strip().upper().rstrip("+")
+    canonical = normalize_symbol(raw).upper() if raw else raw
+    if not raw:
+        return "empty symbol"
+    if canonical != raw:
+        return f"symbol resolves to Yahoo instrument {canonical}"
+    if "=" in raw or raw.startswith("^"):
+        return "symbol is not a plain equity-style search ticker"
+    return None
 
 
 def _search_qs(ticker: str, limit: int) -> str:
@@ -150,6 +164,13 @@ def fetch_reddit_posts(
     ``inter_request_delay`` keeps us under Reddit's public rate limit
     (~10 req/min per IP) even if the caller queries many subreddits.
     """
+    skip_reason = _reddit_skip_reason(ticker)
+    if skip_reason:
+        return (
+            f"<reddit skipped for {str(ticker).upper()}: {skip_reason}; "
+            "ticker-specific Reddit search is only attempted for plain equity-style symbols>"
+        )
+
     blocks = []
     total_posts = 0
     for i, sub in enumerate(subreddits):

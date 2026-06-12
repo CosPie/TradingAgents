@@ -16,15 +16,31 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .symbol_utils import normalize_symbol
+
 logger = logging.getLogger(__name__)
 
 _API = "https://api.stocktwits.com/api/2/streams/symbol/{ticker}.json"
 _UA = "tradingagents/0.2 (+https://github.com/TauricResearch/TradingAgents)"
+_STOCKTWITS_SYMBOL = re.compile(r"^[A-Z][A-Z0-9]{0,14}$")
+
+
+def _stocktwits_skip_reason(ticker: str) -> str | None:
+    raw = str(ticker or "").strip().upper().rstrip("+")
+    canonical = normalize_symbol(raw).upper() if raw else raw
+    if not raw:
+        return "empty symbol"
+    if canonical != raw:
+        return f"symbol resolves to Yahoo instrument {canonical}"
+    if not _STOCKTWITS_SYMBOL.fullmatch(raw):
+        return "symbol is not a plain StockTwits cashtag"
+    return None
 
 
 def fetch_stocktwits_messages(ticker: str, limit: int = 30, timeout: float = 10.0) -> str:
@@ -35,6 +51,13 @@ def fetch_stocktwits_messages(ticker: str, limit: int = 30, timeout: float = 10.
     symbol has no messages, or the response shape is unexpected — the
     caller never has to special-case None or exceptions.
     """
+    skip_reason = _stocktwits_skip_reason(ticker)
+    if skip_reason:
+        return (
+            f"<stocktwits skipped for {str(ticker).upper()}: {skip_reason}; "
+            "StockTwits only has reliable streams for listed equity-style cashtags>"
+        )
+
     url = _API.format(ticker=ticker.upper())
     req = Request(url, headers={"User-Agent": _UA, "Accept": "application/json"})
     try:

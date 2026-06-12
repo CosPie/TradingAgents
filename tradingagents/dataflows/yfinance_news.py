@@ -105,7 +105,7 @@ def get_news_yfinance(
         return f"## {ticker} News, from {start_date} to {end_date}:\n\n{news_str}"
 
     except Exception as e:
-        return f"Error fetching news for {ticker}: {str(e)}"
+        raise RuntimeError(f"Error fetching news for {ticker}: {str(e)}") from e
 
 
 def get_global_news_yfinance(
@@ -199,4 +199,4 @@ def get_global_news_yfinance(
         return f"## Global Market News, from {start_date} to {curr_date}:\n\n{news_str}"
 
     except Exception as e:
-        return f"Error fetching global news: {str(e)}"
+        raise RuntimeError(f"Error fetching global news: {str(e)}") from e
